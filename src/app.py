@@ -90,7 +90,7 @@ if question and question.strip():
                 result = response.json()
                 raw_ans = result["choices"][0]["message"]["content"]
 
-                
+
                 filter_words = [
                     "Begin gunman",
                     "0371--11",
@@ -131,7 +131,7 @@ if st.session_state["answer_cache"]:
 
 # 底部静态电话黄页
 st.divider()
-st.header("📞 电话黄页")
+
 st.caption("AI 答不上来时，可以直接查这里")
 yellow_page = """
 | 部门 | 电话 |
