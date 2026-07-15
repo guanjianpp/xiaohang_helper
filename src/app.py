@@ -1,17 +1,139 @@
 import requests
 import streamlit as st
 from pathlib import Path
+# 修复导入路径，适配项目src结构
 from prompts import load_school_info, get_system_prompt
+
+# 全局API配置
 API_URL = "https://api.siliconflow.cn/v1/chat/completions"
 API_KEY = "sk-mauksldaewhbllokrwtpnmrzpukyehpshfadzclxoqxwrrpn"
 HEADERS = {
-"Authorization": f"Bearer {API_KEY}",
-"Content-Type": "application/json",
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
 }
-st.divider()
-st.header("📞 电话黄页（静态兜底）")
-st.caption("AI 答不上来时，可以直接查这里")
 
+# 会话状态初始化（必须放在最前面，解决按钮填充报错 + 知识库缓存防溢出）
+if "question" not in st.session_state:
+    st.session_state["question"] = ""
+if "answer_cache" not in st.session_state:
+    st.session_state["answer_cache"] = ""
+# 一次性加载知识库并截断长度，防止上下文溢出乱码
+if "school_data" not in st.session_state:
+    full_text = load_school_info()
+    st.session_state["school_data"] = full_text[:6000]
+
+# 页面标题
+st.title("小航 · 郑州航院校园信息助手")
+
+# 身份选择
+role = st.selectbox("你是?", ["新生", "在校生", "教师"])
+
+# 输入框：绑定会话，按钮点击自动填充
+user_input = st.text_input("有啥想问的?", value=st.session_state["question"])
+# 手动输入同步更新会话
+if user_input != st.session_state["question"]:
+    st.session_state["question"] = user_input
+
+# 预设快捷提问按钮
+PRESET_QUESTIONS = {
+    "新生": [
+        "报到那天先去哪?",
+        "学费什么时候交?",
+        "宿舍是 4 人间还是 6 人间?",
+        "有人冒充辅导员要钱怎么办?",
+    ],
+    "在校生": [
+        "怎么开在读证明?",
+        "校园卡丢了怎么补?",
+        "转专业怎么转?",
+        "图书馆几点关?",
+    ],
+    "教师": [
+        "差旅怎么报销?",
+        "调课怎么申请?",
+        "教室设备坏了找谁?",
+        "科研项目去哪申报?",
+    ],
+}
+
+st.markdown("**试试这些问题：**")
+cols = st.columns(4)
+questions = PRESET_QUESTIONS.get(role, [])
+for i, q in enumerate(questions):
+    with cols[i % 4]:
+        if st.button(q, key=f"q_{i}"):
+            # 赋值问题+清空旧回答+刷新页面填充输入框
+            st.session_state["question"] = q
+            st.session_state["answer_cache"] = ""
+            st.rerun()
+
+st.divider()
+# AI问答核心逻辑（合并重复代码，只执行一次）
+question = st.session_state["question"]
+if question and question.strip():
+    files = list(Path("data").glob("*.md"))
+    if not files:
+        st.warning("数据文件缺失，请补齐 data/ 目录下的 md 文件")
+    else:
+        data = {
+            "model": "Qwen/Qwen2.5-7B-Instruct",
+            "messages": [
+                # 使用缓存好的截断知识库，不再重复读取文件
+                {"role": "system", "content": get_system_prompt(role, st.session_state["school_data"])},
+                {"role": "user", "content": question},
+            ],
+        }
+        try:
+            response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
+            if response.status_code == 401:
+                st.error("API Key 失效，请联系老师重新获取")
+            else:
+                result = response.json()
+                raw_ans = result["choices"][0]["message"]["content"]
+
+                # ============ 新增AI输出清洗，过滤所有乱码、残缺碎片、重复来源 ============
+                filter_words = [
+                    "Begin gunman",
+                    "0371--11",
+                    "\"31\":\"3371-669",
+                    "11身份证",
+                    "我在郑州东站应该怎么去乘坐地铁到"
+                ]
+                clean_ans = raw_ans
+                # 过滤无效乱码片段
+                for word in filter_words:
+                    if word in clean_ans:
+                        clean_ans = clean_ans.split(word)[0].strip()
+                # 去除重复叠加的来源标记
+                while "[来源:新生入学.md][来源:新生入学.md]" in clean_ans:
+                    clean_ans = clean_ans.replace("[来源:新生入学.md][来源:新生入学.md]", "[来源:新生入学.md]")
+                while "[来源:办事流程.md][来源:办事流程.md]" in clean_ans:
+                    clean_ans = clean_ans.replace("[来源:办事流程.md][来源:办事流程.md]", "[来源:办事流程.md]")
+                while "[来源:电话黄页.md][来源:电话黄页.md]" in clean_ans:
+                    clean_ans = clean_ans.replace("[来源:电话黄页.md][来源:电话黄页.md]", "[来源:电话黄页.md]")
+                while "[来源:应急防骗.md][来源:应急防骗.md]" in clean_ans:
+                    clean_ans = clean_ans.replace("[来源:应急防骗.md][来源:应急防骗.md]", "[来源:应急防骗.md]")
+                # ======================================================================
+
+                st.session_state["answer_cache"] = clean_ans
+        except requests.exceptions.Timeout:
+            st.error("AI 响应超时，请稍后再试")
+        except requests.exceptions.ConnectionError:
+            st.error("网络连接失败，请检查网络")
+        except (KeyError, IndexError):
+            st.error("AI 返回格式异常，请重试")
+        except Exception as e:
+            st.error(f"发生错误：{e}")
+
+# 渲染AI回答
+if st.session_state["answer_cache"]:
+    st.subheader("小航回答")
+    st.write(st.session_state["answer_cache"])
+
+# 底部静态电话黄页
+st.divider()
+st.header("📞 电话黄页")
+st.caption("AI 答不上来时，可以直接查这里")
 yellow_page = """
 | 部门 | 电话 |
 |------|------|
@@ -24,55 +146,3 @@ yellow_page = """
 | 信息管理中心（网信中心） | 0371-61912718 ⚠ 以官方为准 |
 """
 st.markdown(yellow_page)
-st.title("小航 · 郑州航院校园信息助手")
-role = st.selectbox("你是?", ["新生", "在校生", "教师"])
-question = st.text_input("有啥想问的?")
-PRESET_QUESTIONS = {
-"新生": [
-"报到那天先去哪?",
-"学费什么时候交?",
-"宿舍是 4 人间还是 6 人间?",
-"有人冒充辅导员要钱怎么办?",
-],
-"在校生": [
-
-"怎么开在读证明?",
-"校园卡丢了怎么补?",
-"转专业怎么转?",
-"图书馆几点关?",
-],
-"教师": [
-"差旅怎么报销?",
-"调课怎么申请?",
-"教室设备坏了找谁?",
-"科研项目去哪申报?",
-],
-}
-st.markdown("**试试这些问题：**")
-cols = st.columns(4)
-questions = PRESET_QUESTIONS.get(role, [])
-for i, q in enumerate(questions):
-    with cols[i % 4]:
-        if st.button(q, key=f"q_{i}"):
-            st.session_state["question"] = q
-            st.rerun()
-if question:
-    data = {
-        "model": "Qwen/Qwen2.5-7B-Instruct",
-        "messages": [
-            {"role": "system", "content": get_system_prompt(role, load_school_info())},
-            {"role": "user", "content": question},
-        ],
-    }
-    try:
-        response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
-        result = response.json()
-        answer = result["choices"][0]["message"]["content"]
-        st.write(answer)
-
-    except requests.exceptions.Timeout:
-        st.error("AI 响应超时，请稍后再试")
-    except requests.exceptions.ConnectionError:
-        st.error("网络连接失败，请检查网络")
-    except Exception as e:
-        st.error(f"发生错误：{e}")
