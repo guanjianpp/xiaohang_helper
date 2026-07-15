@@ -68,7 +68,6 @@ for i, q in enumerate(questions):
             st.rerun()
 
 st.divider()
-# AI问答核心逻辑（合并重复代码，只执行一次）
 question = st.session_state["question"]
 if question and question.strip():
     files = list(Path("data").glob("*.md"))
@@ -91,7 +90,7 @@ if question and question.strip():
                 result = response.json()
                 raw_ans = result["choices"][0]["message"]["content"]
 
-                # ============ 新增AI输出清洗，过滤所有乱码、残缺碎片、重复来源 ============
+                
                 filter_words = [
                     "Begin gunman",
                     "0371--11",
