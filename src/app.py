@@ -76,9 +76,9 @@ if question and question.strip():
         st.warning("数据文件缺失，请补齐 data/ 目录下的 md 文件")
     else:
         data = {
-            "model": "Qwen/Qwen2.5-7B-Instruct",
+            "model": "deepseek-ai/DeepSeek-V4-Pro",
             "messages": [
-                # 使用缓存好的截断知识库，不再重复读取文件
+    
                 {"role": "system", "content": get_system_prompt(role, st.session_state["school_data"])},
                 {"role": "user", "content": question},
             ],
