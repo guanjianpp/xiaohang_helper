@@ -52,7 +52,7 @@ if user_input != st.session_state["question"]:
     st.session_state["question"] = user_input
 
 # ====================== 功能5：问题分类标签页 st.tabs 新增代码，原旧按钮全部移除 ======================
-st.markdown("**试试这些分类问题：**")
+st.markdown("**试试这些问题：**")
 tab1, tab2, tab3 = st.tabs(["新生指南", "办事流程", "应急防骗"])
 
 with tab1:
@@ -103,7 +103,7 @@ if question and question.strip():
             messages.append({"role": "user", "content": question})
 
             data = {
-                "model": "deepseek-ai/DeepSeek-V4-Pro",
+                "model": "zai-org/GLM-5.2",
                 "messages": messages,
             }
             try:
