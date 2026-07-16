@@ -12,6 +12,8 @@ HEADERS = {
     "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json",
 }
+# 自定义提问最大字符阈值，可自行调整
+MAX_QUESTION_LENGTH = 400
 
 # 会话状态初始化（必须放在最前面，解决按钮填充报错 + 知识库缓存防溢出）
 if "question" not in st.session_state:
@@ -85,70 +87,74 @@ for i, q in enumerate(questions):
 st.divider()
 question = st.session_state["question"]
 if question and question.strip():
-    files = list(Path("data").glob("*.md"))
-    if not files:
-        st.warning("数据文件缺失，请补齐 data/ 目录下的 md 文件")
+    # 新增：提前校验提问长度，过长直接提示，不调用API
+    if len(question) > MAX_QUESTION_LENGTH:
+        st.error(f"提问文字过长！当前{len(question)}字，最多允许{MAX_QUESTION_LENGTH}字，请精简你的问题后重试")
     else:
-        # 组装消息：系统提示词 + 历史对话 + 当前用户提问（挑战1需求）
-        messages = [
-                       {"role": "system", "content": get_system_prompt(role, st.session_state["school_data"])}
-                   ] + st.session_state["messages"]
-        messages.append({"role": "user", "content": question})
+        files = list(Path("data").glob("*.md"))
+        if not files:
+            st.warning("数据文件缺失，请补齐 data/ 目录下的 md 文件")
+        else:
+            # 组装消息：系统提示词 + 历史对话 + 当前用户提问（挑战1需求）
+            messages = [
+                           {"role": "system", "content": get_system_prompt(role, st.session_state["school_data"])}
+                       ] + st.session_state["messages"]
+            messages.append({"role": "user", "content": question})
 
-        data = {
-            "model": "deepseek-ai/DeepSeek-V4-Pro",
-            "messages": messages,
-        }
-        try:
-            response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
-            if response.status_code == 401:
-                st.error("API Key 失效，请联系老师重新获取")
-            else:
-                result = response.json()
-                raw_ans = result["choices"][0]["message"]["content"]
+            data = {
+                "model": "deepseek-ai/DeepSeek-V4-Pro",
+                "messages": messages,
+            }
+            try:
+                response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
+                if response.status_code == 401:
+                    st.error("API Key 失效，请联系老师重新获取")
+                else:
+                    result = response.json()
+                    raw_ans = result["choices"][0]["message"]["content"]
 
-                filter_words = [
-                    "Begin gunman",
-                    "0371--11",
-                    "\"31\":\"3371-669",
-                    "11身份证",
-                    "我在郑州东站应该怎么去乘坐地铁到"
-                ]
-                clean_ans = raw_ans
-                # 过滤无效乱码片段
-                for word in filter_words:
-                    if word in clean_ans:
-                        clean_ans = clean_ans.split(word)[0].strip()
-                # 去除重复叠加的来源标记
-                while "[来源:新生入学.md][来源:新生入学.md]" in clean_ans:
-                    clean_ans = clean_ans.replace("[来源:新生入学.md][来源:新生入学.md]", "[来源:新生入学.md]")
-                while "[来源:办事流程.md][来源:办事流程.md]" in clean_ans:
-                    clean_ans = clean_ans.replace("[来源:办事流程.md][来源:办事流程.md]", "[来源:办事流程.md]")
-                while "[来源:电话黄页.md][来源:电话黄页.md]" in clean_ans:
-                    clean_ans = clean_ans.replace("[来源:电话黄页.md][来源:电话黄页.md]", "[来源:电话黄页.md]")
-                while "[来源:应急防骗.md][来源:应急防骗.md]" in clean_ans:
-                    clean_ans = clean_ans.replace("[来源:应急防骗.md][来源:应急防骗.md]", "[来源:应急防骗.md]")
-                # ======================================================================
+                    filter_words = [
+                        "Begin gunman",
+                        "0371--11",
+                        "\"31\":\"3371-669",
+                        "11身份证",
+                        "我在郑州东站应该怎么去乘坐地铁到"
+                    ]
+                    clean_ans = raw_ans
+                    # 过滤无效乱码片段
+                    for word in filter_words:
+                        if word in clean_ans:
+                            clean_ans = clean_ans.split(word)[0].strip()
+                    # 去除重复叠加的来源标记
+                    while "[来源:新生入学.md][来源:新生入学.md]" in clean_ans:
+                        clean_ans = clean_ans.replace("[来源:新生入学.md][来源:新生入学.md]", "[来源:新生入学.md]")
+                    while "[来源:办事流程.md][来源:办事流程.md]" in clean_ans:
+                        clean_ans = clean_ans.replace("[来源:办事流程.md][来源:办事流程.md]", "[来源:办事流程.md]")
+                    while "[来源:电话黄页.md][来源:电话黄页.md]" in clean_ans:
+                        clean_ans = clean_ans.replace("[来源:电话黄页.md][来源:电话黄页.md]", "[来源:电话黄页.md]")
+                    while "[来源:应急防骗.md][来源:应急防骗.md]" in clean_ans:
+                        clean_ans = clean_ans.replace("[来源:应急防骗.md][来源:应急防骗.md]", "[来源:应急防骗.md]")
+                    # ======================================================================
 
-                st.session_state["answer_cache"] = clean_ans
-                # 挑战1：本轮问答存入多轮对话messages
-                st.session_state["messages"].append({"role": "user", "content": question})
-                st.session_state["messages"].append({"role": "assistant", "content": clean_ans})
-                # 截图代码：保存完整问答历史（带时间、身份）
-                st.session_state["history"].append({
-                    "time": time.strftime("%H:%M:%S"),
-                    "role": role,
-                    "question": question,
-                    "answer": clean_ans,
-                })
-        except requests.exceptions.Timeout:
-            st.error("AI 响应超时，请稍后再试")
-        except requests.exceptions.ConnectionError:
-            st.error("网络连接失败，请检查网络")
-        except (KeyError, IndexError):
-            st.error("AI 返回格式异常，请重试")
-        except Exception as e:
-            st.error(f"发生错误：{e}")
+                    st.session_state["answer_cache"] = clean_ans
+                    # 挑战1：本轮问答存入多轮对话messages
+                    st.session_state["messages"].append({"role": "user", "content": question})
+                    st.session_state["messages"].append({"role": "assistant", "content": clean_ans})
+                    # 截图代码：保存完整问答历史（带时间、身份）
+                    st.session_state["history"].append({
+                        "time": time.strftime("%H:%M:%S"),
+                        "role": role,
+                        "question": question,
+                        "answer": clean_ans,
+                    })
+            except requests.exceptions.Timeout:
+                st.error("AI 响应超时，请精简问题或稍后再试")
+            except requests.exceptions.ConnectionError:
+                st.error("网络连接失败，请检查网络")
+            except (KeyError, IndexError):
+                st.error("AI 返回格式异常，请重试")
+            except Exception as e:
+                st.error(f"发生错误：{e}")
 
 # 渲染AI回答
 if st.session_state["answer_cache"]:
