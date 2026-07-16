@@ -183,8 +183,14 @@ col1, col2 = st.columns([4, 1])
 with col1:
     st.header("问答历史")
 with col2:
-    if st.button("清空历史"):
+    if st.button("清空历史", type="secondary"):
+        # 1. 清空页面展示的问答记录
         st.session_state["history"] = []
+        # 2. 同步清空AI多轮对话上下文（关键修复点）
+        st.session_state["messages"] = []
+        # 3. 清空当前输入与回答缓存，消除视觉残留
+        st.session_state["question"] = ""
+        st.session_state["answer_cache"] = ""
         st.rerun()
 
 for item in reversed(st.session_state["history"]):
