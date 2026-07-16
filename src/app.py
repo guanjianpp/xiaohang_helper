@@ -107,9 +107,13 @@ if question and question.strip():
                 "messages": messages,
             }
             try:
+                # 记录API开始时间（功能6计时）
+                start_time = time.time()
                 # 新增：加载状态spinner，包裹API请求全部逻辑
                 with st.spinner("小航正在思考..."):
                     response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
+                # 计算API耗时
+                cost_time = time.time() - start_time
                 if response.status_code == 401:
                     st.error("API Key 失效，请联系老师重新获取")
                 else:
@@ -142,6 +146,8 @@ if question and question.strip():
                     # ======================================================================
 
                     st.session_state["answer_cache"] = clean_ans
+                    # 把耗时存入会话，方便渲染页面时读取（功能6）
+                    st.session_state["api_cost"] = cost_time
                     # 挑战1：本轮问答存入多轮对话messages
                     st.session_state["messages"].append({"role": "user", "content": question})
                     st.session_state["messages"].append({"role": "assistant", "content": clean_ans})
@@ -165,6 +171,10 @@ if question and question.strip():
 if st.session_state["answer_cache"]:
     st.subheader("小航回答")
     st.write(st.session_state["answer_cache"])
+    # 功能6：st.caption 展示字数+耗时
+    ans_text = st.session_state["answer_cache"]
+    spend = st.session_state.get("api_cost", 0.0)
+    st.caption(f"回答字数：{len(ans_text)} 字 · 耗时：{spend:.1f} 秒")
 
 # 截图代码：页面下方展示问答历史 + 新增清空历史按钮
 st.divider()
