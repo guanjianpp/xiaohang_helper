@@ -35,7 +35,7 @@ if "school_data" not in st.session_state:
 st.title("小航 · 郑州航院校园信息助手")
 
 # 新增：新对话清空按钮（挑战1需求）
-if st.button(" 开启新对话", type="primary"):
+if st.button("🆕 开启新对话", type="primary"):
     st.session_state["messages"] = []
     st.session_state["history"] = []
     st.session_state["question"] = ""
@@ -51,38 +51,39 @@ user_input = st.text_input("有啥想问的?", value=st.session_state["question"
 if user_input != st.session_state["question"]:
     st.session_state["question"] = user_input
 
-# 预设快捷提问按钮
-PRESET_QUESTIONS = {
-    "新生": [
-        "报到那天先去哪?",
-        "学费什么时候交?",
-        "宿舍是 4 人间还是 6 人间?",
-        "有人冒充辅导员要钱怎么办?",
-    ],
-    "在校生": [
-        "怎么开在读证明?",
-        "校园卡丢了怎么补?",
-        "转专业怎么转?",
-        "图书馆几点关?",
-    ],
-    "教师": [
-        "差旅怎么报销?",
-        "调课怎么申请?",
-        "教室设备坏了找谁?",
-        "科研项目去哪申报?",
-    ],
-}
+# ====================== 功能5：问题分类标签页 st.tabs 新增代码，原旧按钮全部移除 ======================
+st.markdown("**试试这些分类问题：**")
+tab1, tab2, tab3 = st.tabs(["新生指南", "办事流程", "应急防骗"])
 
-st.markdown("**试试这些问题：**")
-cols = st.columns(4)
-questions = PRESET_QUESTIONS.get(role, [])
-for i, q in enumerate(questions):
-    with cols[i % 4]:
-        if st.button(q, key=f"q_{i}"):
-            # 赋值问题+清空旧回答+刷新页面填充输入框
-            st.session_state["question"] = q
-            st.session_state["answer_cache"] = ""
-            st.rerun()
+with tab1:
+    new_questions = ["报到那天先去哪？", "学费什么时候交？", "宿舍是4人间还是6人间？", "怎么去学校？"]
+    cols = st.columns(2)
+    for i, q in enumerate(new_questions):
+        with cols[i % 2]:
+            if st.button(q, key=f"new_{i}"):
+                st.session_state["question"] = q
+                st.session_state["answer_cache"] = ""
+                st.rerun()
+
+with tab2:
+    work_questions = ["怎么开在读证明？", "校园卡丢了怎么补办？", "转专业流程是什么？", "调课怎么申请？"]
+    cols = st.columns(2)
+    for i, q in enumerate(work_questions):
+        with cols[i % 2]:
+            if st.button(q, key=f"work_{i}"):
+                st.session_state["question"] = q
+                st.session_state["answer_cache"] = ""
+                st.rerun()
+
+with tab3:
+    safe_questions = ["有人冒充辅导员要钱怎么办？", "教室设备坏了找谁？", "学生出现心理问题怎么处理？", "差旅报销流程是什么？"]
+    cols = st.columns(2)
+    for i, q in enumerate(safe_questions):
+        with cols[i % 2]:
+            if st.button(q, key=f"safe_{i}"):
+                st.session_state["question"] = q
+                st.session_state["answer_cache"] = ""
+                st.rerun()
 
 st.divider()
 question = st.session_state["question"]
