@@ -136,6 +136,8 @@ if question and question.strip():
                         clean_ans = clean_ans.replace("[来源:电话黄页.md][来源:电话黄页.md]", "[来源:电话黄页.md]")
                     while "[来源:应急防骗.md][来源:应急防骗.md]" in clean_ans:
                         clean_ans = clean_ans.replace("[来源:应急防骗.md][来源:应急防骗.md]", "[来源:应急防骗.md]")
+                    while "[来源:交通出行.md][来源:交通出行.md]" in clean_ans:
+                        clean_ans = clean_ans.replace("[来源:交通出行.md][来源:交通出行.md]", "[来源:交通出行.md]")
                     # ======================================================================
 
                     st.session_state["answer_cache"] = clean_ans
