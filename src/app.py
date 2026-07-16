@@ -35,7 +35,7 @@ if "school_data" not in st.session_state:
 st.title("小航 · 郑州航院校园信息助手")
 
 # 新增：新对话清空按钮（挑战1需求）
-if st.button("🆕 开启新对话", type="primary"):
+if st.button(" 开启新对话", type="primary"):
     st.session_state["messages"] = []
     st.session_state["history"] = []
     st.session_state["question"] = ""
@@ -106,7 +106,9 @@ if question and question.strip():
                 "messages": messages,
             }
             try:
-                response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
+                # 新增：加载状态spinner，包裹API请求全部逻辑
+                with st.spinner("小航正在思考..."):
+                    response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
                 if response.status_code == 401:
                     st.error("API Key 失效，请联系老师重新获取")
                 else:
@@ -161,9 +163,17 @@ if st.session_state["answer_cache"]:
     st.subheader("小航回答")
     st.write(st.session_state["answer_cache"])
 
-# 截图代码：页面下方展示问答历史
+# 截图代码：页面下方展示问答历史 + 新增清空历史按钮
 st.divider()
-st.header("问答历史")
+# 左右分栏：标题 + 清空历史按钮
+col1, col2 = st.columns([4, 1])
+with col1:
+    st.header("问答历史")
+with col2:
+    if st.button("清空历史"):
+        st.session_state["history"] = []
+        st.rerun()
+
 for item in reversed(st.session_state["history"]):
     st.write(f"[{item['time']}] {item['role']} 提问: {item['question']}")
     st.write(f"回答: {item['answer']}")
