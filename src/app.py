@@ -1,5 +1,6 @@
 import requests
 import streamlit as st
+import time
 from pathlib import Path
 # 修复导入路径，适配项目src结构
 from prompts import load_school_info, get_system_prompt
@@ -17,6 +18,12 @@ if "question" not in st.session_state:
     st.session_state["question"] = ""
 if "answer_cache" not in st.session_state:
     st.session_state["answer_cache"] = ""
+# 新增：多轮对话历史存储（挑战1需求）
+if "messages" not in st.session_state:
+    st.session_state["messages"] = []
+# 新增：问答历史记录存储（截图代码）
+if "history" not in st.session_state:
+    st.session_state["history"] = []
 # 一次性加载知识库并截断长度，防止上下文溢出乱码
 if "school_data" not in st.session_state:
     full_text = load_school_info()
@@ -24,6 +31,14 @@ if "school_data" not in st.session_state:
 
 # 页面标题
 st.title("小航 · 郑州航院校园信息助手")
+
+# 新增：新对话清空按钮（挑战1需求）
+if st.button("🆕 开启新对话", type="primary"):
+    st.session_state["messages"] = []
+    st.session_state["history"] = []
+    st.session_state["question"] = ""
+    st.session_state["answer_cache"] = ""
+    st.rerun()
 
 # 身份选择
 role = st.selectbox("你是?", ["新生", "在校生", "教师"])
@@ -74,13 +89,15 @@ if question and question.strip():
     if not files:
         st.warning("数据文件缺失，请补齐 data/ 目录下的 md 文件")
     else:
+        # 组装消息：系统提示词 + 历史对话 + 当前用户提问（挑战1需求）
+        messages = [
+                       {"role": "system", "content": get_system_prompt(role, st.session_state["school_data"])}
+                   ] + st.session_state["messages"]
+        messages.append({"role": "user", "content": question})
+
         data = {
             "model": "deepseek-ai/DeepSeek-V4-Pro",
-            "messages": [
-    
-                {"role": "system", "content": get_system_prompt(role, st.session_state["school_data"])},
-                {"role": "user", "content": question},
-            ],
+            "messages": messages,
         }
         try:
             response = requests.post(API_URL, headers=HEADERS, json=data, timeout=30)
@@ -89,7 +106,6 @@ if question and question.strip():
             else:
                 result = response.json()
                 raw_ans = result["choices"][0]["message"]["content"]
-
 
                 filter_words = [
                     "Begin gunman",
@@ -115,6 +131,16 @@ if question and question.strip():
                 # ======================================================================
 
                 st.session_state["answer_cache"] = clean_ans
+                # 挑战1：本轮问答存入多轮对话messages
+                st.session_state["messages"].append({"role": "user", "content": question})
+                st.session_state["messages"].append({"role": "assistant", "content": clean_ans})
+                # 截图代码：保存完整问答历史（带时间、身份）
+                st.session_state["history"].append({
+                    "time": time.strftime("%H:%M:%S"),
+                    "role": role,
+                    "question": question,
+                    "answer": clean_ans,
+                })
         except requests.exceptions.Timeout:
             st.error("AI 响应超时，请稍后再试")
         except requests.exceptions.ConnectionError:
@@ -129,10 +155,17 @@ if st.session_state["answer_cache"]:
     st.subheader("小航回答")
     st.write(st.session_state["answer_cache"])
 
+# 截图代码：页面下方展示问答历史
+st.divider()
+st.header("问答历史")
+for item in reversed(st.session_state["history"]):
+    st.write(f"[{item['time']}] {item['role']} 提问: {item['question']}")
+    st.write(f"回答: {item['answer']}")
+    st.caption("---")
+
 # 底部静态电话黄页
 st.divider()
 
-st.caption("AI 答不上来时，可以直接查这里")
 yellow_page = """
 | 部门 | 电话 |
 |------|------|
