@@ -20,7 +20,7 @@ QUESTIONS = {
     ]
 }
 
-# ====================== 修复版MD读取函数（课件原版load_school_info） ======================
+
 def load_school_info():
     files = ["01_新生入学.md", "02_办事流程.md", "03_电话黄页.md", "04_应急防骗.md","05_交通出行.md"]
     data_dir = "data"

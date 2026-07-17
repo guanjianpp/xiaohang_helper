@@ -52,7 +52,7 @@ if user_input != st.session_state["question"]:
     st.session_state["question"] = user_input
 
 # ====================== 功能5：问题分类标签页 st.tabs 新增代码，原旧按钮全部移除 ======================
-st.markdown("**试试这些问题：**")
+st.markdown("**试试这些分类问题：**")
 tab1, tab2, tab3 = st.tabs(["新生指南", "办事流程", "应急防骗"])
 
 with tab1:
@@ -103,7 +103,7 @@ if question and question.strip():
             messages.append({"role": "user", "content": question})
 
             data = {
-                "model": "zai-org/GLM-5.2",
+                "model": "deepseek-ai/DeepSeek-V4-Pro",
                 "messages": messages,
             }
             try:
@@ -183,14 +183,8 @@ col1, col2 = st.columns([4, 1])
 with col1:
     st.header("问答历史")
 with col2:
-    if st.button("清空历史", type="secondary"):
-        # 1. 清空页面展示的问答记录
+    if st.button("清空历史"):
         st.session_state["history"] = []
-        # 2. 同步清空AI多轮对话上下文（关键修复点）
-        st.session_state["messages"] = []
-        # 3. 清空当前输入与回答缓存，消除视觉残留
-        st.session_state["question"] = ""
-        st.session_state["answer_cache"] = ""
         st.rerun()
 
 for item in reversed(st.session_state["history"]):
